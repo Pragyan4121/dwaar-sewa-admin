@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router";
 import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./pages/LoginPage";
+import ServicesPage from "./pages/ServicesPage";
+import AddServicePage from "./pages/AddServicePage";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -30,6 +32,14 @@ function LoginRoute() {
 function App() {
   return (
     <Routes>
+      <Route
+        path="/services/add"
+        element={
+          <ProtectedRoute>
+            <AddServicePage />
+          </ProtectedRoute>
+        }
+      />
       <Route path="/login" element={<LoginRoute />} />
 
       <Route
@@ -41,7 +51,16 @@ function App() {
         }
       />
 
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route
+        path="/services"
+        element={
+          <ProtectedRoute>
+            <ServicesPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
 }

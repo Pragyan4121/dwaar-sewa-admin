@@ -61,7 +61,13 @@ function SummaryCard({ title, value, subtitle }: SummaryCardProps) {
         {title}
       </Typography>
 
-      <Typography variant="h4" fontWeight="bold" sx={{ mt: 1 }}>
+      <Typography
+        variant="h4"
+        sx={{
+          mt: 1,
+          fontWeight: "bold",
+        }}
+      >
         {value}
       </Typography>
 
@@ -166,7 +172,12 @@ function DashboardPage() {
           }}
         >
           <Box>
-            <Typography variant="h4" fontWeight="bold">
+            <Typography
+              variant="h4"
+              sx={{
+                fontWeight: "bold",
+              }}
+            >
               Dwaar Sewa Admin Dashboard
             </Typography>
 

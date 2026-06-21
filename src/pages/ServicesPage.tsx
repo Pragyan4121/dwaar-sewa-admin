@@ -189,7 +189,11 @@ function ServicesPage() {
                   </TableCell>
 
                   <TableCell align="right">
-                    <Button size="small" variant="outlined">
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => navigate(`/services/${service.id}/edit`)}
+                    >
                       Edit
                     </Button>
                   </TableCell>

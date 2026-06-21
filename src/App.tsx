@@ -4,6 +4,7 @@ import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./pages/LoginPage";
 import ServicesPage from "./pages/ServicesPage";
 import AddServicePage from "./pages/AddServicePage";
+import EditServicePage from "./pages/EditServicePage";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -32,6 +33,14 @@ function LoginRoute() {
 function App() {
   return (
     <Routes>
+      <Route
+        path="/services/:id/edit"
+        element={
+          <ProtectedRoute>
+            <EditServicePage />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/services/add"
         element={

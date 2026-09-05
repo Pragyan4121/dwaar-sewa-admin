@@ -26,6 +26,7 @@ import {
   PersonSearch,
   ReceiptLong,
   Reviews,
+  LocalOffer,
   Settings,
   ShoppingCart,
 } from "@mui/icons-material";
@@ -123,6 +124,12 @@ const navigationItems: NavigationItem[] = [
     label: "Services",
     path: "/services",
     icon: <MiscellaneousServices />,
+    group: "Management",
+  },
+  {
+    label: "Promotions",
+    path: "/promotions",
+    icon: <LocalOffer />,
     group: "Management",
   },
   {

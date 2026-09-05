@@ -85,3 +85,10 @@ export async function setPromotionStatus(id: number, isActive: boolean) {
 
   return response.data;
 }
+export async function deletePromotion(id: number) {
+  const response = await api.delete<{
+    message: string;
+  }>(`/api/promotions/admin/${id}`);
+
+  return response.data;
+}

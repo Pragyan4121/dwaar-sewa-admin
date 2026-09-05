@@ -25,6 +25,7 @@ import {
   CalendarMonth,
   Close,
   ContentCopy,
+  Delete,
   Edit,
   LocalOffer,
   Percent,
@@ -36,16 +37,13 @@ import AdminLayout from "../layouts/AdminLayout";
 
 import {
   createPromotion,
+  deletePromotion,
   getPromotions,
   setPromotionStatus,
   updatePromotion,
   type Promotion,
   type PromotionPayload,
 } from "../api/promotions";
-
-/* -------------------------------------------------------------------------- */
-/* Types                                                                      */
-/* -------------------------------------------------------------------------- */
 
 type PromotionFormState = {
   code: string;
@@ -70,10 +68,6 @@ type PromotionFormState = {
   is_active: boolean;
 };
 
-/* -------------------------------------------------------------------------- */
-/* Defaults                                                                   */
-/* -------------------------------------------------------------------------- */
-
 const emptyForm: PromotionFormState = {
   code: "",
   title: "",
@@ -96,10 +90,6 @@ const emptyForm: PromotionFormState = {
 
   is_active: true,
 };
-
-/* -------------------------------------------------------------------------- */
-/* Helpers                                                                    */
-/* -------------------------------------------------------------------------- */
 
 function formatMoney(value: number | null) {
   if (value === null) {
@@ -153,7 +143,7 @@ function toInputDateTime(value: string | null) {
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (typeof error === "object" && error !== null && "response" in error) {
-    const axiosLikeError = error as {
+    const axiosError = error as {
       response?: {
         data?: {
           message?: string;
@@ -161,8 +151,8 @@ function getErrorMessage(error: unknown, fallback: string) {
       };
     };
 
-    if (axiosLikeError.response?.data?.message) {
-      return axiosLikeError.response.data.message;
+    if (axiosError.response?.data?.message) {
+      return axiosError.response.data.message;
     }
   }
 
@@ -172,12 +162,6 @@ function getErrorMessage(error: unknown, fallback: string) {
 
   return fallback;
 }
-
-/*
-|--------------------------------------------------------------------------
-| Safe numeric input helpers
-|--------------------------------------------------------------------------
-*/
 
 function allowNonNegativeDecimal(value: string) {
   if (value === "") {
@@ -209,21 +193,15 @@ function allowPositiveInteger(value: string) {
   return Number.isInteger(number) && number >= 1;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Page                                                                       */
-/* -------------------------------------------------------------------------- */
-
 function PromotionsPage() {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
 
   const [loading, setLoading] = useState(true);
-
   const [saving, setSaving] = useState(false);
 
   const [statusChangingId, setStatusChangingId] = useState<number | null>(null);
 
   const [errorMessage, setErrorMessage] = useState("");
-
   const [successMessage, setSuccessMessage] = useState("");
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -234,9 +212,9 @@ function PromotionsPage() {
 
   const [form, setForm] = useState<PromotionFormState>(emptyForm);
 
-  /* ------------------------------------------------------------------------ */
-  /* Load                                                                     */
-  /* ------------------------------------------------------------------------ */
+  const [deleteTarget, setDeleteTarget] = useState<Promotion | null>(null);
+
+  const [deleting, setDeleting] = useState(false);
 
   const loadPromotions = useCallback(async () => {
     setLoading(true);
@@ -244,7 +222,6 @@ function PromotionsPage() {
 
     try {
       const data = await getPromotions();
-
       setPromotions(data);
     } catch (error) {
       setErrorMessage(getErrorMessage(error, "Could not load promotions."));
@@ -263,10 +240,6 @@ function PromotionsPage() {
     };
   }, [loadPromotions]);
 
-  /* ------------------------------------------------------------------------ */
-  /* Form                                                                     */
-  /* ------------------------------------------------------------------------ */
-
   const updateField = (
     field: keyof PromotionFormState,
     value: string | boolean,
@@ -279,7 +252,6 @@ function PromotionsPage() {
 
   const openCreateDialog = () => {
     setEditingPromotion(null);
-
     setForm(emptyForm);
 
     setErrorMessage("");
@@ -293,9 +265,7 @@ function PromotionsPage() {
 
     setForm({
       code: promotion.code,
-
       title: promotion.title,
-
       description: promotion.description ?? "",
 
       discount_percent: String(promotion.discount_percent),
@@ -311,7 +281,6 @@ function PromotionsPage() {
           : String(promotion.minimum_order_amount),
 
       starts_at: toInputDateTime(promotion.starts_at),
-
       ends_at: toInputDateTime(promotion.ends_at),
 
       first_booking_only: promotion.first_booking_only,
@@ -343,19 +312,12 @@ function PromotionsPage() {
     }
 
     setDialogOpen(false);
-
     setEditingPromotion(null);
-
     setForm(emptyForm);
   };
 
-  /* ------------------------------------------------------------------------ */
-  /* Validation                                                               */
-  /* ------------------------------------------------------------------------ */
-
   const validateForm = () => {
     const code = form.code.trim();
-
     const title = form.title.trim();
 
     const discountPercentage = Number(form.discount_percent);
@@ -407,7 +369,6 @@ function PromotionsPage() {
 
     if (form.starts_at && form.ends_at) {
       const start = new Date(form.starts_at);
-
       const end = new Date(form.ends_at);
 
       if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
@@ -421,10 +382,6 @@ function PromotionsPage() {
 
     return null;
   };
-
-  /* ------------------------------------------------------------------------ */
-  /* Payload                                                                  */
-  /* ------------------------------------------------------------------------ */
 
   const buildPayload = (): PromotionPayload => ({
     code: form.code.trim().toUpperCase(),
@@ -464,10 +421,6 @@ function PromotionsPage() {
     is_active: form.is_active,
   });
 
-  /* ------------------------------------------------------------------------ */
-  /* Save                                                                     */
-  /* ------------------------------------------------------------------------ */
-
   const savePromotion = async () => {
     setErrorMessage("");
     setSuccessMessage("");
@@ -476,7 +429,6 @@ function PromotionsPage() {
 
     if (validationError) {
       setErrorMessage(validationError);
-
       return;
     }
 
@@ -496,9 +448,7 @@ function PromotionsPage() {
       }
 
       setDialogOpen(false);
-
       setEditingPromotion(null);
-
       setForm(emptyForm);
 
       await loadPromotions();
@@ -508,10 +458,6 @@ function PromotionsPage() {
       setSaving(false);
     }
   };
-
-  /* ------------------------------------------------------------------------ */
-  /* Status                                                                   */
-  /* ------------------------------------------------------------------------ */
 
   const togglePromotionStatus = async (promotion: Promotion) => {
     setErrorMessage("");
@@ -536,9 +482,32 @@ function PromotionsPage() {
     }
   };
 
-  /* ------------------------------------------------------------------------ */
-  /* Copy code                                                                */
-  /* ------------------------------------------------------------------------ */
+  const confirmDeletePromotion = async () => {
+    if (!deleteTarget) {
+      return;
+    }
+
+    setDeleting(true);
+
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      const result = await deletePromotion(deleteTarget.id);
+
+      setSuccessMessage(result.message);
+
+      setDeleteTarget(null);
+
+      await loadPromotions();
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, "Could not delete promotion."));
+
+      setDeleteTarget(null);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const copyPromoCode = async (code: string) => {
     try {
@@ -550,24 +519,18 @@ function PromotionsPage() {
     }
   };
 
-  /* ------------------------------------------------------------------------ */
-  /* Stats                                                                    */
-  /* ------------------------------------------------------------------------ */
-
-  const activeCount = promotions.filter((item) => item.is_active).length;
+  const activeCount = promotions.filter(
+    (promotion) => promotion.is_active,
+  ).length;
 
   const homePromotionCount = promotions.filter(
-    (item) => item.is_active && item.show_on_home,
+    (promotion) => promotion.is_active && promotion.show_on_home,
   ).length;
 
   const totalRedemptions = promotions.reduce(
-    (total, item) => total + (item.redemption_count ?? 0),
+    (total, promotion) => total + (promotion.redemption_count ?? 0),
     0,
   );
-
-  /* ------------------------------------------------------------------------ */
-  /* Render                                                                   */
-  /* ------------------------------------------------------------------------ */
 
   return (
     <AdminLayout title="Promotions">
@@ -588,23 +551,30 @@ function PromotionsPage() {
               xs: 2.5,
               md: 3,
             },
+
             borderRadius: 4,
+
             border: "1px solid #E2E8F0",
+
             background: "linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%)",
           }}
         >
           <Box
             sx={{
               display: "flex",
+
               alignItems: {
                 xs: "flex-start",
                 md: "center",
               },
+
               justifyContent: "space-between",
+
               flexDirection: {
                 xs: "column",
                 md: "row",
               },
+
               gap: 2,
             }}
           >
@@ -619,12 +589,16 @@ function PromotionsPage() {
                 sx={{
                   width: 54,
                   height: 54,
+
                   borderRadius: 3,
+
                   background: "#EEF4FF",
+
                   display: "flex",
+
                   alignItems: "center",
+
                   justifyContent: "center",
-                  flexShrink: 0,
                 }}
               >
                 <LocalOffer
@@ -641,7 +615,6 @@ function PromotionsPage() {
                   sx={{
                     fontWeight: 900,
                     color: "#102A43",
-                    lineHeight: 1.15,
                   }}
                 >
                   Promotions
@@ -650,7 +623,7 @@ function PromotionsPage() {
                 <Typography
                   variant="body2"
                   sx={{
-                    mt: 0.6,
+                    mt: 0.5,
                     color: "#64748B",
                   }}
                 >
@@ -673,9 +646,11 @@ function PromotionsPage() {
                 disabled={loading}
                 sx={{
                   minHeight: 44,
-                  px: 2,
+
                   borderRadius: 2.5,
+
                   textTransform: "none",
+
                   fontWeight: 800,
                 }}
               >
@@ -688,11 +663,12 @@ function PromotionsPage() {
                 onClick={openCreateDialog}
                 sx={{
                   minHeight: 44,
-                  px: 2.25,
+
                   borderRadius: 2.5,
+
                   textTransform: "none",
+
                   fontWeight: 800,
-                  boxShadow: "0 6px 16px rgba(37, 99, 235, 0.22)",
                 }}
               >
                 Add Promotion
@@ -700,8 +676,6 @@ function PromotionsPage() {
             </Box>
           </Box>
         </Paper>
-
-        {/* ALERTS */}
 
         {errorMessage && (
           <Alert
@@ -732,11 +706,13 @@ function PromotionsPage() {
         <Box
           sx={{
             display: "grid",
+
             gridTemplateColumns: {
               xs: "1fr",
               sm: "repeat(2, 1fr)",
               xl: "repeat(4, 1fr)",
             },
+
             gap: 2,
           }}
         >
@@ -745,29 +721,24 @@ function PromotionsPage() {
               label: "Total Promotions",
               value: promotions.length,
               icon: <LocalOffer />,
-              background: "#EFF6FF",
-              color: "#2563EB",
             },
+
             {
               label: "Active",
               value: activeCount,
               icon: <Sell />,
-              background: "#ECFDF5",
-              color: "#059669",
             },
+
             {
               label: "Shown on Home",
               value: homePromotionCount,
               icon: <Percent />,
-              background: "#FFF7ED",
-              color: "#EA580C",
             },
+
             {
               label: "Total Redemptions",
               value: totalRedemptions,
               icon: <CalendarMonth />,
-              background: "#F5F3FF",
-              color: "#7C3AED",
             },
           ].map((item) => (
             <Paper
@@ -775,10 +746,15 @@ function PromotionsPage() {
               elevation={0}
               sx={{
                 p: 2.25,
+
                 border: "1px solid #E2E8F0",
+
                 borderRadius: 3,
+
                 display: "flex",
+
                 alignItems: "center",
+
                 gap: 2,
               }}
             >
@@ -786,12 +762,18 @@ function PromotionsPage() {
                 sx={{
                   width: 44,
                   height: 44,
+
                   borderRadius: 2.5,
-                  background: item.background,
-                  color: item.color,
+
+                  background: "#F1F5F9",
+
                   display: "flex",
+
                   alignItems: "center",
+
                   justifyContent: "center",
+
+                  color: "#2563EB",
                 }}
               >
                 {item.icon}
@@ -801,9 +783,10 @@ function PromotionsPage() {
                 <Typography
                   sx={{
                     fontSize: 24,
+
                     fontWeight: 900,
+
                     color: "#0F172A",
-                    lineHeight: 1,
                   }}
                 >
                   {item.value}
@@ -812,8 +795,8 @@ function PromotionsPage() {
                 <Typography
                   variant="body2"
                   sx={{
-                    mt: 0.5,
                     color: "#64748B",
+
                     fontWeight: 600,
                   }}
                 >
@@ -824,17 +807,22 @@ function PromotionsPage() {
           ))}
         </Box>
 
-        {/* CONTENT */}
+        {/* PROMOTIONS */}
 
         {loading ? (
           <Paper
             elevation={0}
             sx={{
-              minHeight: 300,
+              minHeight: 280,
+
               display: "flex",
+
               alignItems: "center",
+
               justifyContent: "center",
+
               border: "1px solid #E2E8F0",
+
               borderRadius: 3,
             }}
           >
@@ -844,42 +832,30 @@ function PromotionsPage() {
           <Paper
             elevation={0}
             sx={{
-              p: {
-                xs: 4,
-                md: 6,
-              },
+              p: 6,
+
               textAlign: "center",
+
               border: "1px solid #E2E8F0",
+
               borderRadius: 3,
-              background: "#FFFFFF",
             }}
           >
-            <Box
+            <LocalOffer
               sx={{
-                width: 64,
-                height: 64,
-                mx: "auto",
-                mb: 2,
-                borderRadius: 3,
-                background: "#F1F5F9",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
+                fontSize: 48,
+
+                color: "#94A3B8",
               }}
-            >
-              <LocalOffer
-                sx={{
-                  fontSize: 34,
-                  color: "#94A3B8",
-                }}
-              />
-            </Box>
+            />
 
             <Typography
               sx={{
+                mt: 2,
+
                 fontSize: 20,
+
                 fontWeight: 900,
-                color: "#1E293B",
               }}
             >
               No promotions yet
@@ -888,12 +864,11 @@ function PromotionsPage() {
             <Typography
               variant="body2"
               sx={{
-                mt: 0.75,
+                mt: 1,
                 color: "#64748B",
               }}
             >
-              Create your first promotional offer and choose whether it should
-              appear on the customer Home screen.
+              Create your first promotion for customers.
             </Typography>
 
             <Button
@@ -902,23 +877,25 @@ function PromotionsPage() {
               onClick={openCreateDialog}
               sx={{
                 mt: 2.5,
-                px: 2.5,
-                borderRadius: 2.5,
+
                 textTransform: "none",
+
                 fontWeight: 800,
               }}
             >
-              Create First Promotion
+              Create Promotion
             </Button>
           </Paper>
         ) : (
           <Box
             sx={{
               display: "grid",
+
               gridTemplateColumns: {
                 xs: "1fr",
-                xl: "repeat(2, minmax(0, 1fr))",
+                xl: "repeat(2, 1fr)",
               },
+
               gap: 2,
             }}
           >
@@ -928,20 +905,20 @@ function PromotionsPage() {
                 elevation={0}
                 sx={{
                   p: 2.5,
+
                   border: "1px solid #E2E8F0",
+
                   borderRadius: 3,
-                  transition: "0.2s ease",
-                  "&:hover": {
-                    borderColor: "#CBD5E1",
-                    boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
-                  },
                 }}
               >
                 <Box
                   sx={{
                     display: "flex",
+
                     justifyContent: "space-between",
+
                     alignItems: "flex-start",
+
                     gap: 2,
                   }}
                 >
@@ -954,49 +931,41 @@ function PromotionsPage() {
                     <Box
                       sx={{
                         display: "flex",
-                        flexWrap: "wrap",
+
                         alignItems: "center",
+
+                        flexWrap: "wrap",
+
                         gap: 1,
                       }}
                     >
-                      <Box
+                      <Typography
                         sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 0.5,
+                          fontSize: 18,
+
+                          fontWeight: 900,
                         }}
                       >
-                        <Typography
-                          sx={{
-                            fontSize: 18,
-                            fontWeight: 900,
-                            color: "#0F172A",
-                          }}
-                        >
-                          {promotion.code}
-                        </Typography>
+                        {promotion.code}
+                      </Typography>
 
-                        <Tooltip title="Copy promo code">
-                          <IconButton
-                            size="small"
-                            onClick={() => void copyPromoCode(promotion.code)}
-                          >
-                            <ContentCopy
-                              sx={{
-                                fontSize: 16,
-                              }}
-                            />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
+                      <Tooltip title="Copy promo code">
+                        <IconButton
+                          size="small"
+                          onClick={() => void copyPromoCode(promotion.code)}
+                        >
+                          <ContentCopy
+                            sx={{
+                              fontSize: 16,
+                            }}
+                          />
+                        </IconButton>
+                      </Tooltip>
 
                       <Chip
                         size="small"
                         label={promotion.is_active ? "Active" : "Inactive"}
                         color={promotion.is_active ? "success" : "default"}
-                        sx={{
-                          fontWeight: 700,
-                        }}
                       />
 
                       {promotion.show_on_home && (
@@ -1005,9 +974,6 @@ function PromotionsPage() {
                           label="Home Offer"
                           color="primary"
                           variant="outlined"
-                          sx={{
-                            fontWeight: 700,
-                          }}
                         />
                       )}
 
@@ -1023,8 +989,11 @@ function PromotionsPage() {
                     <Typography
                       sx={{
                         mt: 1,
+
                         fontSize: 16,
+
                         fontWeight: 800,
+
                         color: "#334155",
                       }}
                     >
@@ -1036,8 +1005,8 @@ function PromotionsPage() {
                         variant="body2"
                         sx={{
                           mt: 0.5,
+
                           color: "#64748B",
-                          lineHeight: 1.6,
                         }}
                       >
                         {promotion.description}
@@ -1045,22 +1014,54 @@ function PromotionsPage() {
                     )}
                   </Box>
 
-                  <Tooltip title="Edit promotion">
-                    <IconButton
-                      onClick={() => openEditDialog(promotion)}
-                      sx={{
-                        border: "1px solid #E2E8F0",
-                        borderRadius: 2,
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Edit
+                  {/* EDIT + DELETE */}
+
+                  <Box
+                    sx={{
+                      display: "flex",
+                      gap: 1,
+                    }}
+                  >
+                    <Tooltip title="Edit promotion">
+                      <IconButton
+                        onClick={() => openEditDialog(promotion)}
                         sx={{
-                          fontSize: 19,
+                          border: "1px solid #E2E8F0",
+
+                          borderRadius: 2,
                         }}
-                      />
-                    </IconButton>
-                  </Tooltip>
+                      >
+                        <Edit
+                          sx={{
+                            fontSize: 19,
+                          }}
+                        />
+                      </IconButton>
+                    </Tooltip>
+
+                    <Tooltip title="Delete promotion">
+                      <IconButton
+                        onClick={() => setDeleteTarget(promotion)}
+                        sx={{
+                          border: "1px solid #FECACA",
+
+                          borderRadius: 2,
+
+                          color: "#DC2626",
+
+                          "&:hover": {
+                            background: "#FEF2F2",
+                          },
+                        }}
+                      >
+                        <Delete
+                          sx={{
+                            fontSize: 19,
+                          }}
+                        />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
                 </Box>
 
                 <Divider
@@ -1072,29 +1073,23 @@ function PromotionsPage() {
                 <Box
                   sx={{
                     display: "grid",
+
                     gridTemplateColumns: {
                       xs: "1fr 1fr",
                       md: "repeat(4, 1fr)",
                     },
+
                     gap: 2,
                   }}
                 >
                   <Box>
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: "#94A3B8",
-                        fontWeight: 700,
-                      }}
-                    >
+                    <Typography variant="caption" color="text.secondary">
                       DISCOUNT
                     </Typography>
 
                     <Typography
                       sx={{
-                        mt: 0.4,
                         fontWeight: 900,
-                        color: "#0F172A",
                       }}
                     >
                       {promotion.discount_percent}%
@@ -1102,19 +1097,12 @@ function PromotionsPage() {
                   </Box>
 
                   <Box>
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: "#94A3B8",
-                        fontWeight: 700,
-                      }}
-                    >
+                    <Typography variant="caption" color="text.secondary">
                       MAX DISCOUNT
                     </Typography>
 
                     <Typography
                       sx={{
-                        mt: 0.4,
                         fontWeight: 800,
                       }}
                     >
@@ -1123,19 +1111,12 @@ function PromotionsPage() {
                   </Box>
 
                   <Box>
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: "#94A3B8",
-                        fontWeight: 700,
-                      }}
-                    >
+                    <Typography variant="caption" color="text.secondary">
                       MINIMUM
                     </Typography>
 
                     <Typography
                       sx={{
-                        mt: 0.4,
                         fontWeight: 800,
                       }}
                     >
@@ -1144,23 +1125,17 @@ function PromotionsPage() {
                   </Box>
 
                   <Box>
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: "#94A3B8",
-                        fontWeight: 700,
-                      }}
-                    >
+                    <Typography variant="caption" color="text.secondary">
                       USED
                     </Typography>
 
                     <Typography
                       sx={{
-                        mt: 0.4,
                         fontWeight: 800,
                       }}
                     >
                       {promotion.redemption_count ?? 0}
+
                       {promotion.usage_limit !== null
                         ? ` / ${promotion.usage_limit}`
                         : ""}
@@ -1171,24 +1146,25 @@ function PromotionsPage() {
                 <Box
                   sx={{
                     mt: 2,
+
                     p: 1.75,
-                    borderRadius: 2.5,
+
                     background: "#F8FAFC",
+
+                    borderRadius: 2.5,
+
                     display: "grid",
+
                     gridTemplateColumns: {
                       xs: "1fr",
                       sm: "1fr 1fr",
                     },
-                    gap: 1.5,
+
+                    gap: 2,
                   }}
                 >
                   <Box>
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: "#94A3B8",
-                      }}
-                    >
+                    <Typography variant="caption" color="text.secondary">
                       Starts
                     </Typography>
 
@@ -1196,7 +1172,6 @@ function PromotionsPage() {
                       variant="body2"
                       sx={{
                         fontWeight: 700,
-                        color: "#475569",
                       }}
                     >
                       {formatDate(promotion.starts_at)}
@@ -1204,12 +1179,7 @@ function PromotionsPage() {
                   </Box>
 
                   <Box>
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: "#94A3B8",
-                      }}
-                    >
+                    <Typography variant="caption" color="text.secondary">
                       Ends
                     </Typography>
 
@@ -1217,7 +1187,6 @@ function PromotionsPage() {
                       variant="body2"
                       sx={{
                         fontWeight: 700,
-                        color: "#475569",
                       }}
                     >
                       {formatDate(promotion.ends_at)}
@@ -1228,46 +1197,34 @@ function PromotionsPage() {
                 <Box
                   sx={{
                     mt: 2,
+
                     pt: 2,
+
                     borderTop: "1px solid #F1F5F9",
+
                     display: "flex",
+
                     alignItems: "center",
+
                     justifyContent: "space-between",
+
                     gap: 2,
                   }}
                 >
-                  <Box>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        fontWeight: 700,
-                        color: "#475569",
-                      }}
-                    >
-                      Customer limit:{" "}
-                      {promotion.usage_limit_per_customer === null
-                        ? "Unlimited"
-                        : `${promotion.usage_limit_per_customer} use${
-                            promotion.usage_limit_per_customer === 1 ? "" : "s"
-                          }`}
-                    </Typography>
-
-                    {promotion.home_badge_text && (
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          color: "#94A3B8",
-                        }}
-                      >
-                        Badge: {promotion.home_badge_text}
-                      </Typography>
-                    )}
-                  </Box>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontWeight: 700,
+                    }}
+                  >
+                    Customer limit:{" "}
+                    {promotion.usage_limit_per_customer === null
+                      ? "Unlimited"
+                      : promotion.usage_limit_per_customer}
+                  </Typography>
 
                   <FormControlLabel
-                    sx={{
-                      m: 0,
-                    }}
+                    sx={{ m: 0 }}
                     control={
                       <Switch
                         checked={promotion.is_active}
@@ -1283,7 +1240,7 @@ function PromotionsPage() {
           </Box>
         )}
 
-        {/* DIALOG */}
+        {/* CREATE / EDIT DIALOG */}
 
         <Dialog
           open={dialogOpen}
@@ -1294,20 +1251,19 @@ function PromotionsPage() {
             paper: {
               sx: {
                 borderRadius: 4,
-                overflow: "hidden",
               },
             },
           }}
         >
           <DialogTitle
             sx={{
-              px: 3,
-              py: 2.5,
-              borderBottom: "1px solid #E2E8F0",
               display: "flex",
-              alignItems: "center",
+
               justifyContent: "space-between",
-              gap: 2,
+
+              alignItems: "center",
+
+              borderBottom: "1px solid #E2E8F0",
             }}
           >
             <Box>
@@ -1315,20 +1271,13 @@ function PromotionsPage() {
                 sx={{
                   fontSize: 20,
                   fontWeight: 900,
-                  color: "#0F172A",
                 }}
               >
                 {editingPromotion ? "Edit Promotion" : "Create Promotion"}
               </Typography>
 
-              <Typography
-                variant="body2"
-                sx={{
-                  mt: 0.35,
-                  color: "#64748B",
-                }}
-              >
-                Configure discount rules and customer eligibility.
+              <Typography variant="body2" color="text.secondary">
+                Configure discount and usage rules.
               </Typography>
             </Box>
 
@@ -1339,496 +1288,398 @@ function PromotionsPage() {
 
           <DialogContent
             sx={{
-              px: {
-                xs: 2,
-                md: 3,
-              },
-              py: 3,
+              pt: "24px !important",
             }}
           >
             <Box
               sx={{
                 display: "flex",
+
                 flexDirection: "column",
+
                 gap: 3,
               }}
             >
-              {/* BASIC */}
+              <Typography
+                sx={{
+                  fontWeight: 900,
+                }}
+              >
+                Basic Information
+              </Typography>
 
-              <Box>
-                <Typography
-                  sx={{
-                    fontWeight: 900,
-                    color: "#334155",
-                    mb: 1.5,
+              <Box
+                sx={{
+                  display: "grid",
+
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    md: "1fr 1fr",
+                  },
+
+                  gap: 2,
+                }}
+              >
+                <TextField
+                  label="Promo Code"
+                  value={form.code}
+                  onChange={(event) => {
+                    const value = event.target.value
+                      .toUpperCase()
+                      .replace(/\s+/g, "");
+
+                    updateField("code", value);
                   }}
-                >
-                  Basic Information
-                </Typography>
-
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: {
-                      xs: "1fr",
-                      md: "1fr 1fr",
+                  placeholder="WELCOME20"
+                  fullWidth
+                  slotProps={{
+                    htmlInput: {
+                      maxLength: 50,
                     },
-                    gap: 2,
                   }}
-                >
-                  <TextField
-                    label="Promo Code"
-                    value={form.code}
-                    onChange={(event) => {
-                      const value = event.target.value
-                        .toUpperCase()
-                        .replace(/\s+/g, "");
-
-                      updateField("code", value);
-                    }}
-                    placeholder="WELCOME20"
-                    fullWidth
-                    slotProps={{
-                      htmlInput: {
-                        maxLength: 50,
-                      },
-                    }}
-                  />
-
-                  <TextField
-                    label="Promotion Title"
-                    value={form.title}
-                    onChange={(event) =>
-                      updateField("title", event.target.value)
-                    }
-                    placeholder="20% off your first booking"
-                    fullWidth
-                  />
-
-                  <TextField
-                    label="Description"
-                    value={form.description}
-                    onChange={(event) =>
-                      updateField("description", event.target.value)
-                    }
-                    multiline
-                    minRows={3}
-                    fullWidth
-                    sx={{
-                      gridColumn: {
-                        xs: "auto",
-                        md: "1 / -1",
-                      },
-                    }}
-                  />
-                </Box>
-              </Box>
-
-              <Divider />
-
-              {/* DISCOUNT */}
-
-              <Box>
-                <Typography
-                  sx={{
-                    fontWeight: 900,
-                    color: "#334155",
-                    mb: 1.5,
-                  }}
-                >
-                  Discount Rules
-                </Typography>
-
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: {
-                      xs: "1fr",
-                      md: "repeat(3, 1fr)",
-                    },
-                    gap: 2,
-                  }}
-                >
-                  <TextField
-                    label="Discount"
-                    type="number"
-                    value={form.discount_percent}
-                    onChange={(event) => {
-                      const value = event.target.value;
-
-                      if (allowPercentage(value)) {
-                        updateField("discount_percent", value);
-                      }
-                    }}
-                    slotProps={{
-                      htmlInput: {
-                        min: 0,
-                        max: 100,
-                        step: 0.01,
-                      },
-                      input: {
-                        endAdornment: (
-                          <InputAdornment position="end">%</InputAdornment>
-                        ),
-                      },
-                    }}
-                    helperText="Required. 0–100%"
-                    fullWidth
-                  />
-
-                  <TextField
-                    label="Maximum Discount"
-                    type="number"
-                    value={form.max_discount_amount}
-                    onChange={(event) => {
-                      const value = event.target.value;
-
-                      if (allowNonNegativeDecimal(value)) {
-                        updateField("max_discount_amount", value);
-                      }
-                    }}
-                    slotProps={{
-                      htmlInput: {
-                        min: 0,
-                        step: 0.01,
-                      },
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">Rs.</InputAdornment>
-                        ),
-                      },
-                    }}
-                    helperText="Blank = no cap"
-                    fullWidth
-                  />
-
-                  <TextField
-                    label="Minimum Booking"
-                    type="number"
-                    value={form.minimum_order_amount}
-                    onChange={(event) => {
-                      const value = event.target.value;
-
-                      if (allowNonNegativeDecimal(value)) {
-                        updateField("minimum_order_amount", value);
-                      }
-                    }}
-                    slotProps={{
-                      htmlInput: {
-                        min: 0,
-                        step: 0.01,
-                      },
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">Rs.</InputAdornment>
-                        ),
-                      },
-                    }}
-                    helperText="Blank = no minimum"
-                    fullWidth
-                  />
-
-                  <TextField
-                    label="Minimum Booking"
-                    type="number"
-                    value={form.minimum_order_amount}
-                    onChange={(event) => {
-                      const value = event.target.value;
-
-                      if (allowNonNegativeDecimal(value)) {
-                        updateField("minimum_order_amount", value);
-                      }
-                    }}
-                    slotProps={{
-                      htmlInput: {
-                        min: 0,
-                        step: 0.01,
-                      },
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">Rs.</InputAdornment>
-                        ),
-                      },
-                    }}
-                    helperText="Blank = no minimum"
-                    fullWidth
-                  />
-                </Box>
-              </Box>
-
-              <Divider />
-
-              {/* USAGE */}
-
-              <Box>
-                <Typography
-                  sx={{
-                    fontWeight: 900,
-                    color: "#334155",
-                    mb: 1.5,
-                  }}
-                >
-                  Usage Limits
-                </Typography>
-
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: {
-                      xs: "1fr",
-                      md: "1fr 1fr",
-                    },
-                    gap: 2,
-                  }}
-                >
-                  <TextField
-                    label="Total Usage Limit"
-                    type="number"
-                    value={form.usage_limit}
-                    onChange={(event) => {
-                      const value = event.target.value;
-
-                      if (allowPositiveInteger(value)) {
-                        updateField("usage_limit", value);
-                      }
-                    }}
-                    slotProps={{
-                      htmlInput: {
-                        min: 1,
-                        step: 1,
-                      },
-                    }}
-                    helperText="Blank = unlimited total redemptions"
-                    fullWidth
-                  />
-
-                  <TextField
-                    label="Uses Per Customer"
-                    type="number"
-                    value={form.usage_limit_per_customer}
-                    onChange={(event) => {
-                      const value = event.target.value;
-
-                      if (allowPositiveInteger(value)) {
-                        updateField("usage_limit_per_customer", value);
-                      }
-                    }}
-                    slotProps={{
-                      htmlInput: {
-                        min: 1,
-                        step: 1,
-                      },
-                    }}
-                    helperText="Blank = unlimited per customer"
-                    fullWidth
-                  />
-                </Box>
-
-                <Alert
-                  severity="info"
-                  sx={{
-                    mt: 1.5,
-                    borderRadius: 2,
-                  }}
-                >
-                  Example: Total usage limit 100 + Uses per customer 1 means the
-                  promo can be redeemed 100 times overall, but each customer can
-                  use it only once.
-                </Alert>
-              </Box>
-
-              <Divider />
-
-              {/* DATES */}
-
-              <Box>
-                <Typography
-                  sx={{
-                    fontWeight: 900,
-                    color: "#334155",
-                    mb: 1.5,
-                  }}
-                >
-                  Validity Period
-                </Typography>
-
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: {
-                      xs: "1fr",
-                      md: "1fr 1fr",
-                    },
-                    gap: 2,
-                  }}
-                >
-                  <TextField
-                    label="Start Date"
-                    type="datetime-local"
-                    value={form.starts_at}
-                    onChange={(event) =>
-                      updateField("starts_at", event.target.value)
-                    }
-                    slotProps={{
-                      inputLabel: {
-                        shrink: true,
-                      },
-                    }}
-                    helperText="Blank = starts immediately"
-                    fullWidth
-                  />
-
-                  <TextField
-                    label="End Date"
-                    type="datetime-local"
-                    value={form.ends_at}
-                    onChange={(event) =>
-                      updateField("ends_at", event.target.value)
-                    }
-                    slotProps={{
-                      inputLabel: {
-                        shrink: true,
-                      },
-                    }}
-                    helperText="Blank = no expiry"
-                    fullWidth
-                  />
-                </Box>
-              </Box>
-
-              <Divider />
-
-              {/* HOME */}
-
-              <Box>
-                <Typography
-                  sx={{
-                    fontWeight: 900,
-                    color: "#334155",
-                    mb: 1.5,
-                  }}
-                >
-                  Customer App
-                </Typography>
+                />
 
                 <TextField
-                  label="Home Badge Text"
-                  value={form.home_badge_text}
-                  onChange={(event) =>
-                    updateField("home_badge_text", event.target.value)
-                  }
-                  placeholder="WELCOME OFFER"
-                  helperText="Shown above the offer title on the customer Home screen"
+                  label="Promotion Title"
+                  value={form.title}
+                  onChange={(event) => updateField("title", event.target.value)}
                   fullWidth
                 />
 
-                <Box
+                <TextField
+                  label="Description"
+                  value={form.description}
+                  onChange={(event) =>
+                    updateField("description", event.target.value)
+                  }
+                  multiline
+                  minRows={3}
+                  fullWidth
                   sx={{
-                    mt: 2,
-                    display: "grid",
-                    gridTemplateColumns: {
-                      xs: "1fr",
-                      sm: "repeat(3, 1fr)",
+                    gridColumn: {
+                      xs: "auto",
+                      md: "1 / -1",
                     },
-                    gap: 1,
+                  }}
+                />
+              </Box>
+
+              <Divider />
+
+              <Typography
+                sx={{
+                  fontWeight: 900,
+                }}
+              >
+                Discount Rules
+              </Typography>
+
+              <Box
+                sx={{
+                  display: "grid",
+
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    md: "repeat(3, 1fr)",
+                  },
+
+                  gap: 2,
+                }}
+              >
+                <TextField
+                  label="Discount"
+                  type="number"
+                  value={form.discount_percent}
+                  onChange={(event) => {
+                    const value = event.target.value;
+
+                    if (allowPercentage(value)) {
+                      updateField("discount_percent", value);
+                    }
+                  }}
+                  slotProps={{
+                    htmlInput: {
+                      min: 0,
+                      max: 100,
+                      step: 0.01,
+                    },
+
+                    input: {
+                      endAdornment: (
+                        <InputAdornment position="end">%</InputAdornment>
+                      ),
+                    },
+                  }}
+                  fullWidth
+                />
+
+                <TextField
+                  label="Maximum Discount"
+                  type="number"
+                  value={form.max_discount_amount}
+                  onChange={(event) => {
+                    const value = event.target.value;
+
+                    if (allowNonNegativeDecimal(value)) {
+                      updateField("max_discount_amount", value);
+                    }
+                  }}
+                  slotProps={{
+                    htmlInput: {
+                      min: 0,
+                      step: 0.01,
+                    },
+
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">Rs.</InputAdornment>
+                      ),
+                    },
+                  }}
+                  helperText="Blank = no cap"
+                  fullWidth
+                />
+
+                <TextField
+                  label="Minimum Booking"
+                  type="number"
+                  value={form.minimum_order_amount}
+                  onChange={(event) => {
+                    const value = event.target.value;
+
+                    if (allowNonNegativeDecimal(value)) {
+                      updateField("minimum_order_amount", value);
+                    }
+                  }}
+                  slotProps={{
+                    htmlInput: {
+                      min: 0,
+                      step: 0.01,
+                    },
+
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">Rs.</InputAdornment>
+                      ),
+                    },
+                  }}
+                  helperText="Blank = no minimum"
+                  fullWidth
+                />
+              </Box>
+
+              <Divider />
+
+              <Typography
+                sx={{
+                  fontWeight: 900,
+                }}
+              >
+                Usage Limits
+              </Typography>
+
+              <Box
+                sx={{
+                  display: "grid",
+
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    md: "1fr 1fr",
+                  },
+
+                  gap: 2,
+                }}
+              >
+                <TextField
+                  label="Total Usage Limit"
+                  type="number"
+                  value={form.usage_limit}
+                  onChange={(event) => {
+                    const value = event.target.value;
+
+                    if (allowPositiveInteger(value)) {
+                      updateField("usage_limit", value);
+                    }
+                  }}
+                  slotProps={{
+                    htmlInput: {
+                      min: 1,
+                      step: 1,
+                    },
+                  }}
+                  helperText="Blank = unlimited total uses"
+                  fullWidth
+                />
+
+                <TextField
+                  label="Uses Per Customer"
+                  type="number"
+                  value={form.usage_limit_per_customer}
+                  onChange={(event) => {
+                    const value = event.target.value;
+
+                    if (allowPositiveInteger(value)) {
+                      updateField("usage_limit_per_customer", value);
+                    }
+                  }}
+                  slotProps={{
+                    htmlInput: {
+                      min: 1,
+                      step: 1,
+                    },
+                  }}
+                  helperText="Blank = unlimited per customer"
+                  fullWidth
+                />
+              </Box>
+
+              <Divider />
+
+              <Typography
+                sx={{
+                  fontWeight: 900,
+                }}
+              >
+                Validity Period
+              </Typography>
+
+              <Box
+                sx={{
+                  display: "grid",
+
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    md: "1fr 1fr",
+                  },
+
+                  gap: 2,
+                }}
+              >
+                <TextField
+                  label="Start Date"
+                  type="datetime-local"
+                  value={form.starts_at}
+                  onChange={(event) =>
+                    updateField("starts_at", event.target.value)
+                  }
+                  slotProps={{
+                    inputLabel: {
+                      shrink: true,
+                    },
+                  }}
+                  fullWidth
+                />
+
+                <TextField
+                  label="End Date"
+                  type="datetime-local"
+                  value={form.ends_at}
+                  onChange={(event) =>
+                    updateField("ends_at", event.target.value)
+                  }
+                  slotProps={{
+                    inputLabel: {
+                      shrink: true,
+                    },
+                  }}
+                  fullWidth
+                />
+              </Box>
+
+              <Divider />
+
+              <Typography
+                sx={{
+                  fontWeight: 900,
+                }}
+              >
+                Customer App
+              </Typography>
+
+              <TextField
+                label="Home Badge Text"
+                value={form.home_badge_text}
+                onChange={(event) =>
+                  updateField("home_badge_text", event.target.value)
+                }
+                placeholder="WELCOME OFFER"
+                fullWidth
+              />
+
+              <Box
+                sx={{
+                  display: "grid",
+
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    sm: "repeat(3, 1fr)",
+                  },
+
+                  gap: 1,
+                }}
+              >
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
                   }}
                 >
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      p: 1.5,
-                      borderRadius: 2.5,
-                    }}
-                  >
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={form.first_booking_only}
-                          onChange={(event) =>
-                            updateField(
-                              "first_booking_only",
-                              event.target.checked,
-                            )
-                          }
-                        />
-                      }
-                      label="First booking only"
-                    />
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={form.first_booking_only}
+                        onChange={(event) =>
+                          updateField(
+                            "first_booking_only",
+                            event.target.checked,
+                          )
+                        }
+                      />
+                    }
+                    label="First booking only"
+                  />
+                </Paper>
 
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        display: "block",
-                        color: "#94A3B8",
-                        pl: 0.5,
-                      }}
-                    >
-                      Only new customers
-                    </Typography>
-                  </Paper>
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                  }}
+                >
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={form.show_on_home}
+                        onChange={(event) =>
+                          updateField("show_on_home", event.target.checked)
+                        }
+                      />
+                    }
+                    label="Show on Home"
+                  />
+                </Paper>
 
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      p: 1.5,
-                      borderRadius: 2.5,
-                    }}
-                  >
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={form.show_on_home}
-                          onChange={(event) =>
-                            updateField("show_on_home", event.target.checked)
-                          }
-                        />
-                      }
-                      label="Show on Home"
-                    />
-
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        display: "block",
-                        color: "#94A3B8",
-                        pl: 0.5,
-                      }}
-                    >
-                      Display promotion banner
-                    </Typography>
-                  </Paper>
-
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      p: 1.5,
-                      borderRadius: 2.5,
-                    }}
-                  >
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={form.is_active}
-                          onChange={(event) =>
-                            updateField("is_active", event.target.checked)
-                          }
-                        />
-                      }
-                      label="Active"
-                    />
-
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        display: "block",
-                        color: "#94A3B8",
-                        pl: 0.5,
-                      }}
-                    >
-                      Customers can use this code
-                    </Typography>
-                  </Paper>
-                </Box>
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                  }}
+                >
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={form.is_active}
+                        onChange={(event) =>
+                          updateField("is_active", event.target.checked)
+                        }
+                      />
+                    }
+                    label="Active"
+                  />
+                </Paper>
               </Box>
             </Box>
           </DialogContent>
@@ -1836,20 +1687,10 @@ function PromotionsPage() {
           <DialogActions
             sx={{
               px: 3,
-              py: 2.25,
-              borderTop: "1px solid #E2E8F0",
-              gap: 1,
+              py: 2,
             }}
           >
-            <Button
-              onClick={closeDialog}
-              disabled={saving}
-              sx={{
-                textTransform: "none",
-                fontWeight: 800,
-                color: "#64748B",
-              }}
-            >
+            <Button onClick={closeDialog} disabled={saving}>
               Cancel
             </Button>
 
@@ -1866,18 +1707,148 @@ function PromotionsPage() {
                   <Add />
                 )
               }
-              sx={{
-                minWidth: 160,
-                borderRadius: 2.5,
-                textTransform: "none",
-                fontWeight: 800,
-              }}
             >
               {saving
                 ? "Saving..."
                 : editingPromotion
                   ? "Save Changes"
                   : "Create Promotion"}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* DELETE CONFIRMATION */}
+
+        <Dialog
+          open={Boolean(deleteTarget)}
+          onClose={() => {
+            if (!deleting) {
+              setDeleteTarget(null);
+            }
+          }}
+          fullWidth
+          maxWidth="xs"
+          slotProps={{
+            paper: {
+              sx: {
+                borderRadius: 3,
+              },
+            },
+          }}
+        >
+          <DialogTitle>
+            <Box
+              sx={{
+                display: "flex",
+
+                alignItems: "center",
+
+                gap: 1.5,
+              }}
+            >
+              <Box
+                sx={{
+                  width: 42,
+                  height: 42,
+
+                  borderRadius: 2,
+
+                  background: "#FEF2F2",
+
+                  display: "flex",
+
+                  alignItems: "center",
+
+                  justifyContent: "center",
+                }}
+              >
+                <Delete
+                  sx={{
+                    color: "#DC2626",
+                  }}
+                />
+              </Box>
+
+              <Typography
+                sx={{
+                  fontSize: 20,
+
+                  fontWeight: 900,
+
+                  color: "#0F172A",
+                }}
+              >
+                Delete Promotion?
+              </Typography>
+            </Box>
+          </DialogTitle>
+
+          <DialogContent>
+            <Typography
+              variant="body2"
+              sx={{
+                color: "#64748B",
+
+                lineHeight: 1.7,
+              }}
+            >
+              Are you sure you want to permanently delete{" "}
+              <strong>{deleteTarget?.code}</strong>?
+            </Typography>
+
+            <Alert
+              severity="warning"
+              sx={{
+                mt: 2,
+
+                borderRadius: 2,
+              }}
+            >
+              Promotions that already have booking or redemption history cannot
+              be permanently deleted. Deactivate them instead.
+            </Alert>
+          </DialogContent>
+
+          <DialogActions
+            sx={{
+              px: 3,
+              pb: 2.5,
+              gap: 1,
+            }}
+          >
+            <Button
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleting}
+              sx={{
+                textTransform: "none",
+
+                fontWeight: 800,
+              }}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              variant="contained"
+              color="error"
+              onClick={() => void confirmDeletePromotion()}
+              disabled={deleting}
+              startIcon={
+                deleting ? (
+                  <CircularProgress size={17} color="inherit" />
+                ) : (
+                  <Delete />
+                )
+              }
+              sx={{
+                borderRadius: 2,
+
+                textTransform: "none",
+
+                fontWeight: 800,
+              }}
+            >
+              {deleting ? "Deleting..." : "Delete Permanently"}
             </Button>
           </DialogActions>
         </Dialog>

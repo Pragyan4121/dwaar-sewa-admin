@@ -144,7 +144,7 @@ function SettingsPage() {
     setErrorMessage("");
 
     try {
-      const response = await api.get<SettingsResponse>("/api/admin/settings");
+      const response = await api.get<SettingsResponse>("/api/settings/admin");
 
       setSettings(response.data.settings);
 
@@ -295,10 +295,9 @@ function SettingsPage() {
         {},
       );
 
-      await api.patch("/api/admin/settings", {
+      await api.patch("/api/settings/admin", {
         settings: requestSettings,
       });
-
       setSuccessMessage("Settings updated successfully.");
 
       await fetchSettings();

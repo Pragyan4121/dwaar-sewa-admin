@@ -59,19 +59,72 @@ const BOOKING_KEYS = [
 
 const FINANCE_KEYS = ["provider_commission_percent"];
 
-const SYSTEM_KEYS = ["maintenance_mode"];
+const MAINTENANCE_KEYS = [
+  "maintenance_mode",
+  "maintenance_badge",
+  "maintenance_title",
+  "maintenance_message",
+  "maintenance_return_title",
+  "maintenance_return_message",
+  "maintenance_support_title",
+  "maintenance_thank_you_title",
+  "maintenance_thank_you_message",
+  "maintenance_side_note",
+  "maintenance_service_message",
+  "maintenance_footer_item_1",
+  "maintenance_footer_item_2",
+  "maintenance_footer_item_3",
+  "maintenance_brand_tagline",
+];
 
 const ALL_GROUPED_KEYS = [
   ...BUSINESS_KEYS,
   ...BOOKING_KEYS,
   ...FINANCE_KEYS,
-  ...SYSTEM_KEYS,
+  ...MAINTENANCE_KEYS,
 ];
 
+const MULTILINE_KEYS = [
+  "maintenance_message",
+  "maintenance_return_message",
+  "maintenance_thank_you_message",
+  "maintenance_side_note",
+  "maintenance_service_message",
+];
+
+const SETTING_LABELS: Record<string, string> = {
+  business_name: "Business Name",
+  support_phone: "Support Phone",
+  support_email: "Support Email",
+  default_service_area: "Default Service Area",
+
+  customer_cancellation_window_minutes: "Cancellation Window",
+  cash_payment_enabled: "Cash Payment",
+
+  provider_commission_percent: "Provider Commission",
+
+  maintenance_mode: "Maintenance Mode",
+  maintenance_badge: "Maintenance Badge",
+  maintenance_title: "Main Title",
+  maintenance_message: "Main Message",
+  maintenance_return_title: "Return Section Title",
+  maintenance_return_message: "Return Section Message",
+  maintenance_support_title: "Support Section Title",
+  maintenance_thank_you_title: "Thank You Title",
+  maintenance_thank_you_message: "Thank You Message",
+  maintenance_side_note: "Side Note",
+  maintenance_service_message: "Service Availability Message",
+  maintenance_footer_item_1: "Footer Item 1",
+  maintenance_footer_item_2: "Footer Item 2",
+  maintenance_footer_item_3: "Footer Item 3",
+  maintenance_brand_tagline: "Brand Tagline",
+};
+
 const formatSettingLabel = (key: string) => {
-  return key
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return (
+    SETTING_LABELS[key] ||
+    key.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
+  );
 };
 
 const parseSettingValue = (setting: SystemSetting): string | boolean => {
@@ -86,26 +139,18 @@ function SettingsPage() {
   const navigate = useNavigate();
 
   const [settings, setSettings] = useState<SystemSetting[]>([]);
-
   const [formValues, setFormValues] = useState<EditableSettings>({});
-
   const [isLoading, setIsLoading] = useState(true);
-
   const [isSaving, setIsSaving] = useState(false);
-
   const [errorMessage, setErrorMessage] = useState("");
-
   const [successMessage, setSuccessMessage] = useState("");
 
   const handleAuthenticationError = useCallback(
     (status?: number) => {
       if (status === 401 || status === 403) {
         localStorage.removeItem("adminToken");
-
         localStorage.removeItem("adminUser");
-
         navigate("/login");
-
         return true;
       }
 
@@ -120,7 +165,6 @@ function SettingsPage() {
         const apiError = error as {
           response?: {
             status?: number;
-
             data?: {
               message?: string;
             };
@@ -151,7 +195,6 @@ function SettingsPage() {
       const values = response.data.settings.reduce<EditableSettings>(
         (result, setting) => {
           result[setting.setting_key] = parseSettingValue(setting);
-
           return result;
         },
         {},
@@ -192,14 +235,16 @@ function SettingsPage() {
       FINANCE_KEYS.includes(setting.setting_key),
     ),
 
-    system: settings.filter((setting) =>
-      SYSTEM_KEYS.includes(setting.setting_key),
+    maintenance: settings.filter((setting) =>
+      MAINTENANCE_KEYS.includes(setting.setting_key),
     ),
 
     other: settings.filter(
       (setting) => !ALL_GROUPED_KEYS.includes(setting.setting_key),
     ),
   };
+
+  const maintenanceModeEnabled = formValues.maintenance_mode === true;
 
   const handleValueChange = (key: string, value: string | boolean) => {
     setFormValues((currentValues) => ({
@@ -218,7 +263,6 @@ function SettingsPage() {
         commissionValue > 100
       ) {
         setErrorMessage("Provider commission must be between 0 and 100.");
-
         return false;
       }
     }
@@ -233,6 +277,18 @@ function SettingsPage() {
           "Cancellation window must be a non-negative whole number.",
         );
 
+        return false;
+      }
+    }
+
+    if (
+      typeof formValues.support_email === "string" &&
+      formValues.support_email.trim() !== ""
+    ) {
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+      if (!emailPattern.test(formValues.support_email.trim())) {
+        setErrorMessage("Please enter a valid support email address.");
         return false;
       }
     }
@@ -298,6 +354,7 @@ function SettingsPage() {
       await api.patch("/api/settings/admin", {
         settings: requestSettings,
       });
+
       setSuccessMessage("Settings updated successfully.");
 
       await fetchSettings();
@@ -316,15 +373,25 @@ function SettingsPage() {
     const currentValue = formValues[setting.setting_key];
 
     if (setting.value_type === "boolean") {
+      const isMaintenanceMode = setting.setting_key === "maintenance_mode";
+
       return (
         <Paper
           key={setting.id}
           elevation={0}
           sx={{
-            p: 1.8,
+            p: 2,
             borderRadius: 2.5,
-            border: "1px solid #e2e8f0",
-            bgcolor: "#f8fafc",
+            border: isMaintenanceMode
+              ? maintenanceModeEnabled
+                ? "1px solid #fca5a5"
+                : "1px solid #bbf7d0"
+              : "1px solid #e2e8f0",
+            bgcolor: isMaintenanceMode
+              ? maintenanceModeEnabled
+                ? "#fff7f7"
+                : "#f7fff9"
+              : "#f8fafc",
           }}
         >
           <FormControlLabel
@@ -334,7 +401,7 @@ function SettingsPage() {
                 onChange={(event) =>
                   handleValueChange(setting.setting_key, event.target.checked)
                 }
-                color="success"
+                color={isMaintenanceMode ? "warning" : "success"}
               />
             }
             label={
@@ -350,12 +417,29 @@ function SettingsPage() {
                   <Typography
                     sx={{
                       fontSize: 13,
-                      fontWeight: 750,
+                      fontWeight: 800,
                       color: "#334155",
                     }}
                   >
                     {formatSettingLabel(setting.setting_key)}
                   </Typography>
+
+                  {isMaintenanceMode && (
+                    <Chip
+                      label={
+                        maintenanceModeEnabled
+                          ? "Platform Offline"
+                          : "Platform Online"
+                      }
+                      size="small"
+                      color={maintenanceModeEnabled ? "warning" : "success"}
+                      sx={{
+                        height: 21,
+                        fontSize: 9,
+                        fontWeight: 800,
+                      }}
+                    />
+                  )}
 
                   <Chip
                     label={setting.is_public ? "Public" : "Private"}
@@ -397,8 +481,17 @@ function SettingsPage() {
     const isCancellationWindow =
       setting.setting_key === "customer_cancellation_window_minutes";
 
+    const isMultiline = MULTILINE_KEYS.includes(setting.setting_key);
+
+    const isMaintenanceSetting = setting.setting_key.startsWith("maintenance_");
+
     return (
-      <Box key={setting.id}>
+      <Box
+        key={setting.id}
+        sx={{
+          gridColumn: isMultiline ? { xs: "auto", md: "1 / -1" } : "auto",
+        }}
+      >
         <Box
           sx={{
             mb: 0.7,
@@ -429,6 +522,20 @@ function SettingsPage() {
               color: setting.is_public ? "#1d4ed8" : "#64748b",
             }}
           />
+
+          {isMaintenanceSetting && (
+            <Chip
+              label="Maintenance Page"
+              size="small"
+              sx={{
+                height: 19,
+                fontSize: 8.5,
+                fontWeight: 700,
+                bgcolor: "#fff7ed",
+                color: "#c2410c",
+              }}
+            />
+          )}
         </Box>
 
         <TextField
@@ -457,14 +564,15 @@ function SettingsPage() {
                 ? "email"
                 : "text"
           }
+          multiline={isMultiline}
+          minRows={isMultiline ? 3 : undefined}
+          maxRows={isMultiline ? 6 : undefined}
           fullWidth
           size="small"
           slotProps={{
             htmlInput: {
               min: isNumber ? 0 : undefined,
-
               max: isCommission ? 100 : undefined,
-
               step: isCommission ? 0.01 : isCancellationWindow ? 1 : undefined,
             },
           }}
@@ -472,6 +580,11 @@ function SettingsPage() {
             setting.description ||
             (setting.is_public ? "Public setting" : "Private setting")
           }
+          sx={{
+            "& .MuiOutlinedInput-root": {
+              borderRadius: 2.2,
+            },
+          }}
         />
       </Box>
     );
@@ -568,6 +681,185 @@ function SettingsPage() {
     );
   };
 
+  const renderMaintenanceSection = () => {
+    if (groupedSettings.maintenance.length === 0) {
+      return null;
+    }
+
+    const maintenanceModeSetting = groupedSettings.maintenance.find(
+      (setting) => setting.setting_key === "maintenance_mode",
+    );
+
+    const maintenanceContentSettings = MAINTENANCE_KEYS.filter(
+      (key) => key !== "maintenance_mode",
+    )
+      .map((key) =>
+        groupedSettings.maintenance.find(
+          (setting) => setting.setting_key === key,
+        ),
+      )
+      .filter((setting): setting is SystemSetting => Boolean(setting));
+
+    return (
+      <Paper
+        elevation={0}
+        sx={{
+          borderRadius: 3.5,
+          border: maintenanceModeEnabled
+            ? "1px solid #fdba74"
+            : "1px solid #e2e8f0",
+          overflow: "hidden",
+          bgcolor: "#ffffff",
+        }}
+      >
+        <Box
+          sx={{
+            px: {
+              xs: 2,
+              sm: 2.5,
+            },
+            py: 2.2,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 2,
+            flexWrap: "wrap",
+            borderBottom: "1px solid #e2e8f0",
+            bgcolor: maintenanceModeEnabled ? "#fffaf5" : "#ffffff",
+          }}
+        >
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1.2,
+            }}
+          >
+            <Box
+              sx={{
+                width: 40,
+                height: 40,
+                borderRadius: 2.5,
+                bgcolor: maintenanceModeEnabled ? "#fff7ed" : "#eff6ff",
+                color: maintenanceModeEnabled ? "#ea580c" : "#2563eb",
+                display: "grid",
+                placeItems: "center",
+                flexShrink: 0,
+              }}
+            >
+              <Engineering />
+            </Box>
+
+            <Box>
+              <Typography
+                sx={{
+                  fontSize: 16,
+                  fontWeight: 800,
+                  color: "#0f172a",
+                }}
+              >
+                Maintenance Mode & Page Editor
+              </Typography>
+
+              <Typography
+                sx={{
+                  mt: 0.2,
+                  fontSize: 11.5,
+                  color: "#64748b",
+                }}
+              >
+                Control platform availability and edit every message shown on
+                the maintenance screen.
+              </Typography>
+            </Box>
+          </Box>
+
+          <Chip
+            label={
+              maintenanceModeEnabled
+                ? "Maintenance Active"
+                : "Platform Available"
+            }
+            color={maintenanceModeEnabled ? "warning" : "success"}
+            size="small"
+            sx={{
+              fontWeight: 800,
+            }}
+          />
+        </Box>
+
+        <Box
+          sx={{
+            p: {
+              xs: 2,
+              sm: 2.5,
+            },
+          }}
+        >
+          {maintenanceModeEnabled && (
+            <Alert
+              severity="warning"
+              sx={{
+                mb: 2.5,
+                borderRadius: 2.5,
+              }}
+            >
+              Maintenance mode is currently enabled. Customer and provider
+              access may be restricted until you switch it off and save the
+              settings.
+            </Alert>
+          )}
+
+          {maintenanceModeSetting && (
+            <Box sx={{ mb: 3 }}>
+              {renderSettingField(maintenanceModeSetting)}
+            </Box>
+          )}
+
+          <Box
+            sx={{
+              mb: 2,
+            }}
+          >
+            <Typography
+              sx={{
+                fontSize: 14,
+                fontWeight: 800,
+                color: "#0f172a",
+              }}
+            >
+              Maintenance Screen Content
+            </Typography>
+
+            <Typography
+              sx={{
+                mt: 0.4,
+                fontSize: 11.5,
+                color: "#64748b",
+              }}
+            >
+              These values control the text customers and providers see while
+              maintenance mode is active.
+            </Typography>
+          </Box>
+
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "1fr",
+                md: "repeat(2, minmax(0, 1fr))",
+              },
+              gap: 2.2,
+            }}
+          >
+            {maintenanceContentSettings.map(renderSettingField)}
+          </Box>
+        </Box>
+      </Paper>
+    );
+  };
+
   return (
     <AdminLayout title="Settings">
       <Box
@@ -608,7 +900,8 @@ function SettingsPage() {
               color: "#64748b",
             }}
           >
-            Manage business, booking, finance and platform configuration.
+            Manage business, booking, finance, maintenance and platform
+            configuration.
           </Typography>
         </Box>
 
@@ -736,12 +1029,7 @@ function SettingsPage() {
             <Tune />,
           )}
 
-          {renderSettingsSection(
-            "System Control",
-            "Control maintenance mode and platform availability.",
-            groupedSettings.system,
-            <Engineering />,
-          )}
+          {renderMaintenanceSection()}
 
           {renderSettingsSection(
             "Other Settings",

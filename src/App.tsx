@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router";
 
+import { clearAdminSession, hasValidAdminSession } from "./api/session";
+
 import AddServicePage from "./pages/AddServicePage";
 import BookingsPage from "./pages/BookingsPage";
 import CategoriesPage from "./pages/CategoriesPage";
@@ -21,37 +23,17 @@ interface ProtectedRouteProps {
   children: ReactNode;
 }
 
-interface StoredAdminUser {
-  role_name?: string;
-  is_active?: boolean;
-}
-
-function clearInvalidAdminSession() {
-  localStorage.removeItem("adminToken");
-  localStorage.removeItem("adminUser");
-}
-
-function hasValidAdminSession(): boolean {
-  const token = localStorage.getItem("adminToken");
-  const storedUser = localStorage.getItem("adminUser");
-
-  if (!token || !storedUser) {
-    return false;
-  }
-
-  try {
-    const adminUser = JSON.parse(storedUser) as StoredAdminUser;
-
-    return adminUser.role_name === "admin" && adminUser.is_active === true;
-  } catch {
-    clearInvalidAdminSession();
-    return false;
-  }
-}
-
+/*
+ * This only checks the cached, non-sensitive admin snapshot (see
+ * api/session.ts) — it's a UX shortcut so the app doesn't flash the
+ * wrong screen, not the real authorization check. The actual token is
+ * an httpOnly cookie the server validates on every API call; if it's
+ * missing or expired, the axios interceptor in api/api.ts will bounce
+ * the user back to /login on the first 401.
+ */
 function ProtectedRoute({ children }: ProtectedRouteProps) {
   if (!hasValidAdminSession()) {
-    clearInvalidAdminSession();
+    clearAdminSession();
 
     return <Navigate to="/login" replace />;
   }
@@ -64,7 +46,7 @@ function LoginRoute() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  clearInvalidAdminSession();
+  clearAdminSession();
 
   return <LoginPage />;
 }

@@ -43,6 +43,7 @@ import {
 } from "@mui/icons-material";
 import { useNavigate } from "react-router";
 import api from "../api/api";
+import { clearAdminSession } from "../api/session";
 import AdminLayout from "../layouts/AdminLayout";
 
 type BookingStatus =
@@ -456,8 +457,7 @@ function BookingsPage() {
   const handleAuthenticationError = useCallback(
     (status?: number) => {
       if (status === 401 || status === 403) {
-        localStorage.removeItem("adminToken");
-        localStorage.removeItem("adminUser");
+        clearAdminSession();
 
         navigate("/login");
 

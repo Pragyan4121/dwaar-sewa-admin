@@ -22,16 +22,7 @@ import {
 import axios from "axios";
 
 import api from "../api/api";
-
-interface AdminUser {
-  id: number;
-  full_name: string;
-  phone: string;
-  email: string | null;
-  role_id: number;
-  role_name: string;
-  is_active: boolean;
-}
+import { setAdminUser, type AdminUser } from "../api/session";
 
 interface LoginResponse {
   message: string;
@@ -90,28 +81,21 @@ function LoginPage() {
       );
 
       if (response.data.user.role_name !== "admin") {
-        localStorage.removeItem("adminToken");
-
-        localStorage.removeItem("adminUser");
-
         setErrorMessage("Only administrators can access this panel.");
 
         return;
       }
 
       if (!response.data.user.is_active) {
-        localStorage.removeItem("adminToken");
-
-        localStorage.removeItem("adminUser");
-
         setErrorMessage("This administrator account is inactive.");
 
         return;
       }
 
-      localStorage.setItem("adminToken", response.data.token);
-
-      localStorage.setItem("adminUser", JSON.stringify(response.data.user));
+      // The JWT itself is set as an httpOnly cookie by the server — it
+      // never touches JavaScript-accessible storage. Only the
+      // non-sensitive user snapshot is kept client-side, for the UI.
+      setAdminUser(response.data.user);
 
       navigate("/dashboard", {
         replace: true,

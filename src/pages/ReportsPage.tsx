@@ -34,6 +34,7 @@ import {
 import { useNavigate } from "react-router";
 import api from "../api/api";
 import AdminLayout from "../layouts/AdminLayout";
+import { clearAdminSession } from "../api/session";
 
 interface ReportsOverview {
   total_bookings: number;
@@ -236,8 +237,7 @@ function ReportsPage() {
   const handleAuthenticationError = useCallback(
     (status?: number) => {
       if (status === 401 || status === 403) {
-        localStorage.removeItem("adminToken");
-        localStorage.removeItem("adminUser");
+        clearAdminSession();
 
         navigate("/login");
 

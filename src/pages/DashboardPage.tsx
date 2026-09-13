@@ -26,6 +26,7 @@ import {
 import { useNavigate } from "react-router";
 import api from "../api/api";
 import AdminLayout from "../layouts/AdminLayout";
+import { clearAdminSession } from "../api/session";
 
 interface DashboardSummary {
   users: {
@@ -314,8 +315,7 @@ function DashboardPage() {
             apiError.response?.status === 401 ||
             apiError.response?.status === 403
           ) {
-            localStorage.removeItem("adminToken");
-            localStorage.removeItem("adminUser");
+            clearAdminSession();
             navigate("/login");
             return;
           }

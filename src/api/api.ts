@@ -1,28 +1,15 @@
 import axios from "axios";
 
+import { clearAdminSession } from "./session";
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:3000",
+  // The admin JWT is delivered as an httpOnly cookie (see
+  // /api/auth/admin/login on the backend). withCredentials makes the
+  // browser send that cookie on every request instead of us attaching a
+  // Bearer header read from localStorage.
+  withCredentials: true,
 });
-
-function clearAdminSession() {
-  localStorage.removeItem("adminToken");
-  localStorage.removeItem("adminUser");
-}
-
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("adminToken");
-
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-
-    return config;
-  },
-  (error: unknown) => {
-    return Promise.reject(error);
-  },
-);
 
 api.interceptors.response.use(
   (response) => response,

@@ -33,6 +33,11 @@ import {
 import EngineeringIcon from "@mui/icons-material/Engineering";
 import { useLocation, useNavigate } from "react-router";
 import api from "../api/api";
+import {
+  clearAdminSession,
+  getAdminUser,
+  setAdminUser as persistAdminUser,
+} from "../api/session";
 
 const drawerWidth = 278;
 
@@ -167,8 +172,7 @@ function AdminLayout({ children, title }: AdminLayoutProps) {
           sessionUser.role_name !== "admin" ||
           sessionUser.is_active !== true
         ) {
-          localStorage.removeItem("adminToken");
-          localStorage.removeItem("adminUser");
+          clearAdminSession();
 
           navigate("/login", {
             replace: true,
@@ -177,7 +181,7 @@ function AdminLayout({ children, title }: AdminLayoutProps) {
           return;
         }
 
-        localStorage.setItem("adminUser", JSON.stringify(sessionUser));
+        persistAdminUser(sessionUser);
 
         if (isMounted) {
           setAdminUser({
@@ -186,15 +190,13 @@ function AdminLayout({ children, title }: AdminLayoutProps) {
           });
         }
       } catch {
-        const storedUser = localStorage.getItem("adminUser");
+        const storedUser = getAdminUser();
 
         if (storedUser && isMounted) {
-          try {
-            const parsedUser = JSON.parse(storedUser) as StoredAdminUser;
-            setAdminUser(parsedUser);
-          } catch {
-            setAdminUser({});
-          }
+          setAdminUser({
+            full_name: storedUser.full_name,
+            email: storedUser.email,
+          });
         }
       } finally {
         if (isMounted) {
@@ -239,8 +241,13 @@ function AdminLayout({ children, title }: AdminLayoutProps) {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("adminToken");
-    localStorage.removeItem("adminUser");
+    clearAdminSession();
+
+    // Clear the httpOnly cookie server-side too — the client can't
+    // remove an httpOnly cookie itself. Fire-and-forget: even if this
+    // request fails (e.g. offline), the local session is already gone
+    // and the user is sent back to the login screen.
+    void api.post("/api/auth/admin/logout").catch(() => undefined);
 
     navigate("/login", {
       replace: true,

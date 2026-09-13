@@ -47,6 +47,7 @@ import {
 import { useNavigate } from "react-router";
 import api from "../api/api";
 import AdminLayout from "../layouts/AdminLayout";
+import { clearAdminSession } from "../api/session";
 
 type VerificationStatus = "pending" | "verified" | "rejected" | "suspended";
 
@@ -321,9 +322,7 @@ function ProvidersPage() {
   const handleAuthenticationError = useCallback(
     (status?: number) => {
       if (status === 401 || status === 403) {
-        localStorage.removeItem("adminToken");
-
-        localStorage.removeItem("adminUser");
+        clearAdminSession();
 
         navigate("/login");
 

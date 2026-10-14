@@ -29,6 +29,7 @@ import {
   TaskAlt,
   TrendingDown,
   TrendingUp,
+  VideocamOutlined,
   WorkOutlined,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router";
@@ -113,6 +114,26 @@ interface DailyTrend {
 interface DailyTrendsResponse {
   message: string;
   trends: DailyTrend[];
+}
+
+interface ConsultationConversion {
+  total: number;
+  resolved: number;
+  needs_visit: number;
+  awaiting_outcome: number;
+  conversion_rate_percent: number;
+}
+
+interface ConsultationCreditsByStatus {
+  available: { count: number; total_amount: number };
+  redeemed: { count: number; total_amount: number };
+  expired: { count: number; total_amount: number };
+}
+
+interface ConsultationConversionResponse {
+  message: string;
+  consultations: ConsultationConversion;
+  credits: ConsultationCreditsByStatus;
 }
 
 const initialOverview: ReportsOverview = {
@@ -222,6 +243,12 @@ function ReportsPage() {
 
   const [dailyTrends, setDailyTrends] = useState<DailyTrend[]>([]);
 
+  const [consultationConversion, setConsultationConversion] =
+    useState<ConsultationConversion | null>(null);
+
+  const [consultationCredits, setConsultationCredits] =
+    useState<ConsultationCreditsByStatus | null>(null);
+
   const [dateFrom, setDateFrom] = useState("");
 
   const [dateTo, setDateTo] = useState("");
@@ -296,6 +323,7 @@ function ReportsPage() {
         servicesResponse,
         providersResponse,
         trendsResponse,
+        consultationResponse,
       ] = await Promise.all([
         api.get<ReportsOverviewResponse>(
           `/api/admin/reports/overview${queryString ? `?${queryString}` : ""}`,
@@ -318,6 +346,12 @@ function ReportsPage() {
             queryString ? `?${queryString}` : ""
           }`,
         ),
+
+        api.get<ConsultationConversionResponse>(
+          `/api/admin/reports/consultation-conversion${
+            queryString ? `?${queryString}` : ""
+          }`,
+        ),
       ]);
 
       setOverview(overviewResponse.data.overview);
@@ -329,6 +363,10 @@ function ReportsPage() {
       setTopProviders(providersResponse.data.providers);
 
       setDailyTrends(trendsResponse.data.trends);
+
+      setConsultationConversion(consultationResponse.data.consultations);
+
+      setConsultationCredits(consultationResponse.data.credits);
     } catch (error: unknown) {
       const message = getApiErrorMessage(error, "Could not load reports.");
 
@@ -1023,6 +1061,174 @@ function ReportsPage() {
               </Typography>
             </Paper>
           </Box>
+
+          {/* VIDEO CONSULTATIONS */}
+          {consultationConversion ? (
+            <Paper
+              elevation={0}
+              sx={{
+                borderRadius: 3.5,
+                border: "1px solid #e2e8f0",
+                overflow: "hidden",
+                mb: 3,
+              }}
+            >
+              <Box
+                sx={{
+                  px: 2.5,
+                  py: 2,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1.5,
+                  borderBottom: "1px solid #e2e8f0",
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 2,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "#eef4ff",
+                    color: "#3563e9",
+                  }}
+                >
+                  <VideocamOutlined sx={{ fontSize: 20 }} />
+                </Box>
+
+                <Box>
+                  <Typography
+                    sx={{ fontSize: 16, fontWeight: 800, color: "#0f172a" }}
+                  >
+                    Video Consultations
+                  </Typography>
+
+                  <Typography sx={{ fontSize: 12.5, color: "#64748b" }}>
+                    How many remote consultations converted into a home visit
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box sx={{ p: 2.5 }}>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: {
+                      xs: "1fr 1fr",
+                      sm: "repeat(5, 1fr)",
+                    },
+                    gap: 2,
+                    mb: consultationCredits ? 3 : 0,
+                  }}
+                >
+                  {[
+                    {
+                      label: "Total Consultations",
+                      value: consultationConversion.total,
+                    },
+                    {
+                      label: "Resolved Remotely",
+                      value: consultationConversion.resolved,
+                    },
+                    {
+                      label: "Needed a Visit",
+                      value: consultationConversion.needs_visit,
+                    },
+                    {
+                      label: "Awaiting Outcome",
+                      value: consultationConversion.awaiting_outcome,
+                    },
+                    {
+                      label: "Conversion Rate",
+                      value: formatPercent(
+                        consultationConversion.conversion_rate_percent,
+                      ),
+                    },
+                  ].map((stat) => (
+                    <Box key={stat.label}>
+                      <Typography
+                        sx={{ fontSize: 11, fontWeight: 700, color: "#94a3b8" }}
+                      >
+                        {stat.label.toUpperCase()}
+                      </Typography>
+
+                      <Typography
+                        sx={{
+                          fontSize: 22,
+                          fontWeight: 800,
+                          color: "#0f172a",
+                          mt: 0.5,
+                        }}
+                      >
+                        {stat.value}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
+
+                {consultationCredits ? (
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: {
+                        xs: "1fr",
+                        sm: "repeat(3, 1fr)",
+                      },
+                      gap: 2,
+                      pt: 2.5,
+                      borderTop: "1px solid #e2e8f0",
+                    }}
+                  >
+                    {(
+                      [
+                        {
+                          label: "Credits Available",
+                          data: consultationCredits.available,
+                          color: "#2563eb",
+                        },
+                        {
+                          label: "Credits Redeemed",
+                          data: consultationCredits.redeemed,
+                          color: "#16a34a",
+                        },
+                        {
+                          label: "Credits Expired Unused",
+                          data: consultationCredits.expired,
+                          color: "#dc2626",
+                        },
+                      ] as const
+                    ).map((row) => (
+                      <Box key={row.label}>
+                        <Typography
+                          sx={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: "#94a3b8",
+                          }}
+                        >
+                          {row.label.toUpperCase()}
+                        </Typography>
+
+                        <Typography
+                          sx={{
+                            fontSize: 16,
+                            fontWeight: 800,
+                            color: row.color,
+                            mt: 0.5,
+                          }}
+                        >
+                          {row.data.count} ·{" "}
+                          {formatMoney(row.data.total_amount)}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                ) : null}
+              </Box>
+            </Paper>
+          ) : null}
 
           {/* TOP SERVICES / PROVIDERS */}
           <Box

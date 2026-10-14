@@ -9,6 +9,16 @@ const api = axios.create({
   // browser send that cookie on every request instead of us attaching a
   // Bearer header read from localStorage.
   withCredentials: true,
+  headers: {
+    // CSRF mitigation (see the backend's csrf.middleware.ts). Because
+    // the admin token is a SameSite=None cookie, the browser attaches
+    // it automatically to cross-site requests too — this custom header
+    // forces a CORS preflight on every state-changing request, which
+    // the backend's origin allowlist will only let this app's own
+    // origin pass. A malicious page has no way to add this header to a
+    // forged request, so it can't satisfy the check.
+    "X-Dwaar-Sewa-Client": "admin-panel",
+  },
 });
 
 api.interceptors.response.use(

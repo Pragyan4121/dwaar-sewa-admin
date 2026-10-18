@@ -59,6 +59,7 @@ function AddServicePage() {
   const [basePrice, setBasePrice] = useState("");
 
   const [durationMinutes, setDurationMinutes] = useState("");
+  const [videoConsultationPrice, setVideoConsultationPrice] = useState("");
 
   const [categoryId, setCategoryId] = useState("");
 
@@ -155,6 +156,14 @@ function AddServicePage() {
     setBasePrice(value);
   };
 
+  const handleVideoPriceChange = (value: string) => {
+    if (value !== "" && Number(value) < 0) {
+      return;
+    }
+
+    setVideoConsultationPrice(value);
+  };
+
   const handleDurationChange = (value: string) => {
     if (value === "") {
       setDurationMinutes("");
@@ -208,6 +217,20 @@ function AddServicePage() {
       }
     }
 
+    let parsedVideoPrice: number | null = null;
+
+    if (videoConsultationPrice.trim().length > 0) {
+      parsedVideoPrice = Number(videoConsultationPrice);
+
+      if (!Number.isFinite(parsedVideoPrice) || parsedVideoPrice < 0) {
+        setErrorMessage(
+          "Video consultation price must be a valid non-negative amount.",
+        );
+
+        return;
+      }
+    }
+
     setIsSaving(true);
 
     try {
@@ -219,6 +242,8 @@ function AddServicePage() {
         basePrice: parsedBasePrice,
 
         durationMinutes: parsedDuration,
+
+        videoConsultationPrice: parsedVideoPrice,
 
         categoryId: Number(categoryId),
 
@@ -635,6 +660,49 @@ function AddServicePage() {
                     helperText="Optional · minimum 1 minute"
                   />
                 </Box>
+              </Box>
+
+              <Box>
+                <Typography
+                  sx={{
+                    mb: 0.7,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    color: "#475569",
+                  }}
+                >
+                  Video Consultation Price
+                </Typography>
+
+                <TextField
+                  type="number"
+                  value={videoConsultationPrice}
+                  onChange={(event) =>
+                    handleVideoPriceChange(event.target.value)
+                  }
+                  fullWidth
+                  size="small"
+                  placeholder="Leave empty to disable"
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <Payments
+                          sx={{
+                            mr: 1,
+                            fontSize: 19,
+                            color: "#94a3b8",
+                          }}
+                        />
+                      ),
+                    },
+
+                    htmlInput: {
+                      min: 0,
+                      step: 0.01,
+                    },
+                  }}
+                  helperText="Optional · NPR · customers see the video consultation option only when this is set"
+                />
               </Box>
 
               <Paper

@@ -55,6 +55,7 @@ interface Service {
   description: string | null;
   base_price: string;
   duration_minutes: number | null;
+  video_consultation_price?: string | null;
   is_active: boolean;
   category_id: number | null;
   created_at: string;
@@ -77,6 +78,7 @@ function EditServicePage() {
   const [description, setDescription] = useState("");
   const [basePrice, setBasePrice] = useState("");
   const [durationMinutes, setDurationMinutes] = useState("");
+  const [videoConsultationPrice, setVideoConsultationPrice] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [isActive, setIsActive] = useState(true);
 
@@ -156,6 +158,8 @@ function EditServicePage() {
         service.duration_minutes ? String(service.duration_minutes) : "",
       );
 
+      setVideoConsultationPrice(service.video_consultation_price ?? "");
+
       setCategoryId(service.category_id ? String(service.category_id) : "");
 
       setIsActive(service.is_active);
@@ -189,6 +193,14 @@ function EditServicePage() {
     }
 
     setBasePrice(value);
+  };
+
+  const handleVideoPriceChange = (value: string) => {
+    if (value !== "" && Number(value) < 0) {
+      return;
+    }
+
+    setVideoConsultationPrice(value);
   };
 
   const handleDurationChange = (value: string) => {
@@ -251,6 +263,20 @@ function EditServicePage() {
       }
     }
 
+    let parsedVideoPrice: number | null = null;
+
+    if (videoConsultationPrice.trim().length > 0) {
+      parsedVideoPrice = Number(videoConsultationPrice);
+
+      if (!Number.isFinite(parsedVideoPrice) || parsedVideoPrice < 0) {
+        setErrorMessage(
+          "Video consultation price must be a valid non-negative amount.",
+        );
+
+        return;
+      }
+    }
+
     setIsSaving(true);
 
     try {
@@ -262,6 +288,8 @@ function EditServicePage() {
         basePrice: parsedBasePrice,
 
         durationMinutes: parsedDuration,
+
+        videoConsultationPrice: parsedVideoPrice,
 
         categoryId: Number(categoryId),
 
@@ -687,6 +715,49 @@ function EditServicePage() {
                     helperText="Optional · minimum 1 minute"
                   />
                 </Box>
+              </Box>
+
+              <Box>
+                <Typography
+                  sx={{
+                    mb: 0.7,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    color: "#475569",
+                  }}
+                >
+                  Video Consultation Price
+                </Typography>
+
+                <TextField
+                  type="number"
+                  value={videoConsultationPrice}
+                  onChange={(event) =>
+                    handleVideoPriceChange(event.target.value)
+                  }
+                  fullWidth
+                  size="small"
+                  placeholder="Leave empty to disable"
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <Payments
+                          sx={{
+                            mr: 1,
+                            fontSize: 19,
+                            color: "#94a3b8",
+                          }}
+                        />
+                      ),
+                    },
+
+                    htmlInput: {
+                      min: 0,
+                      step: 0.01,
+                    },
+                  }}
+                  helperText="Optional · NPR · customers see the video consultation option only when this is set"
+                />
               </Box>
 
               <Paper
